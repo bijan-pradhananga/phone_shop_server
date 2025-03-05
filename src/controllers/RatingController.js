@@ -1,8 +1,8 @@
 const Rating = require('../models/Rating'); 
 const Product = require('../models/Product');
 
-// Add or Update Rating
 class RatingController{
+    // Add or Update Rating
     async addOrUpdateRating (req, res) {
         const { userId, productId, rating, review } = req.body;
     
@@ -36,7 +36,7 @@ class RatingController{
                 totalRatings 
             });
     
-            res.status(200).json({ message: 'Rating added/updated successfully' });
+            res.status(200).json({ message: 'Rating added successfully' });
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: 'Server error' });
@@ -48,7 +48,7 @@ class RatingController{
         const { productId } = req.params;
     
         try {
-            const ratings = await Rating.find({ product: productId }).populate('user', 'name');
+            const ratings = await Rating.find({ product: productId }).populate("user", "name");
             res.status(200).json({ ratings });
         } catch (error) {
             console.error(error);
