@@ -1,10 +1,10 @@
 const express = require('express')
-const Brand = require('../controllers/RatingController');
+const Rating = require('../controllers/RatingController');
 const ratingRouter = express.Router();
-const rInstance = new Brand();
+const rInstance = new Rating();
 
 ratingRouter.post('/', rInstance.addOrUpdateRating);
-ratingRouter.get('/:id', rInstance.getProductRatings);
-ratingRouter.delete('/:id', rInstance.deleteRating);
+ratingRouter.get('/:productId', rInstance.getProductRatings);
+ratingRouter.delete('/:userId/:productId', rInstance.deleteRating);
 
 module.exports =  ratingRouter;
