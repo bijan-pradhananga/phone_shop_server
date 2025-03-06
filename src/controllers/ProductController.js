@@ -76,7 +76,6 @@ class ProductController {
   async getRecommendedPhones(req, res) {
     try {
       const { phone_model, top_n } = req.query;
-      console.log(phone_model, top_n);
       
       // Validate input
       if (!phone_model) {
