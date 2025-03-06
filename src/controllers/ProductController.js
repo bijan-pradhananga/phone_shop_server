@@ -3,6 +3,7 @@ const Cart = require("../models/Cart");
 const Order = require('../models/Order');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 
 class ProductController {
   // Create a product
@@ -71,7 +72,43 @@ class ProductController {
   }
 
 
+  // Get recommended phones from Python API
+  async getRecommendedPhones(req, res) {
+    try {
+      const { phone_model, top_n } = req.query;
+      console.log(phone_model, top_n);
+      
+      // Validate input
+      if (!phone_model) {
+        return res.status(400).json({ message: 'Phone model is required.' });
+      }
 
+      // Call the Python API
+      const pythonApiUrl = `${process.env.PYTHON_API_URL}/similar_phones/`; 
+      const response = await axios.get(pythonApiUrl, {
+        params: {
+          phone_model,
+          top_n: top_n || 4, 
+        },
+      });
+
+      // Extract recommended phones from the response
+      const recommendedPhones = response.data.similar_phones;
+     
+
+      // Fetch full product details for the recommended phones
+      const products = await Product.find({ name: { $in: recommendedPhones } }).populate('brand');
+
+      // Return the recommended products
+      res.status(200).json({
+        message: 'Recommended phones fetched successfully',
+        products,
+      });
+    } catch (err) {
+      console.error('Error fetching recommended phones:', err.message);
+      res.status(500).json({ message: err.message });
+    }
+  }
 
   // Get single product
   async show(req, res) {
