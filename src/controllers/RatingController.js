@@ -55,6 +55,30 @@ class RatingController{
             res.status(500).json({ message: 'Server error' });
         }
     };
+
+    // Check if user has rated a product
+    async hasUserRatedProduct(req, res) {
+        const { userId, productId } = req.params;
+
+        try {
+            // Check if the user has already rated the product
+            const existingRating = await Rating.findOne({ user: userId, product: productId });
+
+            if (existingRating) {
+                // If rating exists, return true and the rating details
+                return res.status(200).json({ 
+                    hasRated: true, 
+                    rating: existingRating
+                });
+            } else {
+                // If no rating exists, return false
+                return res.status(200).json({ hasRated: false });
+            }
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Server error' });
+        }
+    }
     
     // Delete Rating
     async deleteRating (req, res) {
