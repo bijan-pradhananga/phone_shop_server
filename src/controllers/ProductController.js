@@ -72,8 +72,8 @@ class ProductController {
   }
 
 
-  // Get recommended phones from Python API
-  async getRecommendedPhones(req, res) {
+  // Get similar phones from Python API
+  async getSimilarProducts(req, res) {
     try {
       const { phone_model, top_n } = req.query;
       
