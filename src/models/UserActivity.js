@@ -3,11 +3,7 @@ const mongoose = require("mongoose");
 const userActivitySchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    viewedProducts: [
-      {
-        product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
-      }
-    ],
+    viewedProducts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
     purchasedProducts: [
       {
         product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
