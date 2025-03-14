@@ -43,7 +43,7 @@ class ProductController {
       } else if (sort === 'desc') {
         sortQuery = { price: -1 }; // Descending order by price
       } else {
-        sortQuery = { createdAt: 1 }; // Default sorting
+        sortQuery = { createdAt: -1 }; // Latest Product First
       }
 
       // Calculate the number of items to skip for pagination
