@@ -4,6 +4,7 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Payment = require('../models/Payment');
 const PController = require('../controllers/PaymentController');
+const { logPurchase } = require('./UserActivityController');
 const pInstance = new PController();
 
 class OrderController {
@@ -44,17 +45,17 @@ class OrderController {
     async createOrder(req, res) {
         try {
             const { userId, billingInfo } = req.body; // Extract userId and billingInfo from request body
-    
+
             // Fetch the user's cart
             const cart = await Cart.findOne({ user: userId });
             if (!cart) return res.status(404).json({ message: 'Cart not found' });
-    
+
             const items = cart.items;
             if (items.length === 0) return res.status(404).json({ message: 'No products in cart' });
-    
+
             let totalAmount = 0;
             const orderItems = [];
-    
+
             // Calculate total amount, prepare order items, and check product quantity
             for (const item of items) {
                 const product = await Product.findById(item.product);
@@ -66,7 +67,7 @@ class OrderController {
                         message: `Not enough stock for product: ${product.name}. Available: ${product.stock}`,
                     });
                 }
-    
+
                 const price = product.price;
                 totalAmount += price * item.quantity;
                 orderItems.push({
@@ -74,12 +75,12 @@ class OrderController {
                     quantity: item.quantity,
                     price,
                 });
-    
+
                 // Decrease product stock
                 product.stock -= item.quantity;
                 await product.save();
             }
-    
+
             // Create a new order
             const newOrder = new Order({
                 user: userId,
@@ -88,13 +89,16 @@ class OrderController {
                 totalAmount,
                 billingInfo,
             });
-    
+
             // Save the order
             await newOrder.save();
-    
+
             // clear the cart after creating the order
             await Cart.deleteOne({ user: userId });
-    
+
+            // ✅ Log Purchase in UserActivity
+            await logPurchase(userId, orderItems);
+            
             // Handle payment
             if (billingInfo.paymentMethod === 'Cash on Delivery') {
                 // Record the payment for COD
@@ -105,14 +109,14 @@ class OrderController {
                     status: 'pending', // Payment pending until cash is received
                 });
                 await payment.save();
-    
-                return res.status(201).json({ 
+
+                return res.status(201).json({
                     message: 'Order created successfully with Cash on Delivery',
                     order: newOrder,
                     payment,
                 });
             }
-    
+
 
             if (billingInfo.paymentMethod === 'Esewa') {
                 return pInstance.initializeEsewaPayment(newOrder, res); // Pass the order to payment initialization
@@ -120,14 +124,14 @@ class OrderController {
             // if (billingInfo.paymentMethod === 'Khalti') {
             //     return pInstance.initializeKhaltiPayment(newOrder, res);
             // }
-    
+
             res.status(400).json({ message: 'Invalid payment method' });
         } catch (error) {
             console.error(error);
             res.status(500).json({ message: 'Failed to create order', error });
         }
     }
-    
+
 
     // View all orders for a user use post
     async viewOrders(req, res) {
