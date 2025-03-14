@@ -5,7 +5,6 @@ const rInstance = new Rating();
 
 ratingRouter.post('/', rInstance.addOrUpdateRating);
 ratingRouter.get('/:productId', rInstance.getProductRatings);
-ratingRouter.delete('/:userId/:productId', rInstance.deleteRating);
 ratingRouter.get('/has-rated/:userId/:productId', rInstance.hasUserRatedProduct);
-
+ratingRouter.delete('/:userId/:productId', rInstance.deleteRating);
 module.exports =  ratingRouter;
