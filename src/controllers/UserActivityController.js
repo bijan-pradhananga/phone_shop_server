@@ -79,9 +79,6 @@ exports.getUserActivity = async (req, res) => {
 
     try {
         const userActivity = await UserActivity.findOne({ user: userId })
-            .populate('viewedProducts.product', 'name brand price images')
-            .populate('purchasedProducts.product', 'name brand price images')
-            .populate('ratings.product', 'name brand price images');
 
         if (!userActivity) {
             return res.status(404).json({ message: "No user activity found." });
