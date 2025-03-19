@@ -109,6 +109,53 @@ class ProductController {
     }
   }
 
+// Get recommendations (Collaborative Filtering)
+async getRecommendations(req, res) {
+  try {
+    const { user_id, top_n } = req.query;
+    
+    // Validate input
+    if (!user_id) {
+      return res.status(400).json({ message: 'User ID is required.' });
+    }
+
+    // Fetch user activity data
+    const userActivityResponse = await axios.post(`${process.env.BACKEND_URI}/activity`, {
+      userId: user_id,
+    });
+
+    // Check if user activity exists
+    if (!userActivityResponse.data) {
+      return res.status(404).json({ message: 'No user activity found for this user.' });
+    }
+    
+    const userActivity = userActivityResponse.data;
+    
+    // Call the Python API
+    const pythonApiUrl = `${process.env.PYTHON_API_URL}/recommendations/`;
+    const response = await axios.post(pythonApiUrl, userActivity, {
+      params: {  // Pass top_n as a query parameter
+        top_n: top_n || 4,  // Default to 4 if top_n is not provided
+      },
+    });
+
+    // Extract recommended product IDs from the response
+    const recommendedProductIds = response.data.recommendations;
+    
+    // Fetch full product details for the recommended products
+    const products = await Product.find({ _id: { $in: recommendedProductIds } }).populate('brand');
+
+    // Return the recommended products
+    res.status(200).json({
+      message: 'Recommended products fetched successfully',
+      products,
+    });
+  } catch (err) {
+    console.error('Error fetching recommended products:', err.message);
+    res.status(500).json({ message: err.message });
+  }
+}
+
   // Get single product
   async show(req, res) {
     try {
