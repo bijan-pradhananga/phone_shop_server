@@ -8,6 +8,7 @@ productRouter.get('/',  pInstance.index);
 productRouter.post('/',upload.array('images', 5), pInstance.store);
 productRouter.get('/search', pInstance.search);
 productRouter.get('/similar', pInstance.getSimilarProducts);
+productRouter.get('/recommend', pInstance.getRecommendations);
 productRouter.get('/:id', pInstance.show);
 productRouter.put('/:id', upload.array('images', 5), pInstance.update);
 productRouter.delete('/:id', pInstance.destroy);
