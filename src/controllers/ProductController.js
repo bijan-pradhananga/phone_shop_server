@@ -1,4 +1,4 @@
-const Product = require('../models/Product'); // Product model
+const Product = require('../models/Product');
 const Cart = require("../models/Cart");
 const Order = require('../models/Order');
 const fs = require('fs');
@@ -12,7 +12,6 @@ class ProductController {
       if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'At least one image is required.' });
       }
-      // Limit to 5 images
       if (req.files.length > 5) {
         return res.status(400).json({ message: 'Maximum 5 images are allowed.' });
       }
@@ -30,36 +29,27 @@ class ProductController {
   // Get all products
   async index(req, res) {
     try {
-      // Extract query parameters for pagination
-      const page = parseInt(req.query.page) || 1; // Default to page 1
-      const limit = parseInt(req.query.limit) || 10; // Default to 10 items per page
-      const sort = req.query.sort || 'def'; // Default to 'def' (latest products first)
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const sort = req.query.sort || 'def';
 
       let sortQuery = {};
-
-      // Determine sorting based on 'sort' query parameter
       if (sort === 'asc') {
-        sortQuery = { price: 1 }; // Ascending order by price
+        sortQuery = { price: 1 };
       } else if (sort === 'desc') {
-        sortQuery = { price: -1 }; // Descending order by price
+        sortQuery = { price: -1 };
       } else {
-        sortQuery = { createdAt: -1 }; // Latest Product First
+        sortQuery = { createdAt: -1 };
       }
 
-      // Calculate the number of items to skip for pagination
       const skip = (page - 1) * limit;
-
-      // Fetch paginated and sorted products
       const products = await Product.find()
-        .skip(skip) // Skip the first N results
-        .limit(limit) // Limit the number of results
-        .sort(sortQuery) // Sort based on the dynamic sort object
+        .skip(skip)
+        .limit(limit)
+        .sort(sortQuery)
         .populate('brand', 'name');
-
-      // Get the total count of products for pagination info
       const total = await Product.countDocuments();
 
-      // Send the response with paginated products and pagination info
       res.status(200).json({
         products,
         total,
@@ -71,34 +61,22 @@ class ProductController {
     }
   }
 
-
   // Get similar phones from Python API
   async getSimilarProducts(req, res) {
     try {
       const { phone_model, top_n } = req.query;
-      
-      // Validate input
       if (!phone_model) {
         return res.status(400).json({ message: 'Phone model is required.' });
       }
 
-      // Call the Python API
-      const pythonApiUrl = `${process.env.PYTHON_API_URL}/similar_phones/`; 
+      const pythonApiUrl = `${process.env.PYTHON_API_URL}/similar_phones/`;
       const response = await axios.get(pythonApiUrl, {
-        params: {
-          phone_model,
-          top_n: top_n || 4, 
-        },
+        params: { phone_model, top_n: top_n || 4 },
       });
 
-      // Extract recommended phones from the response
       const recommendedPhones = response.data.similar_phones;
-     
-
-      // Fetch full product details for the recommended phones
       const products = await Product.find({ name: { $in: recommendedPhones } }).populate('brand');
 
-      // Return the recommended products
       res.status(200).json({
         message: 'Recommended phones fetched successfully',
         products,
@@ -109,52 +87,74 @@ class ProductController {
     }
   }
 
-// Get recommendations (Collaborative Filtering)
-async getRecommendations(req, res) {
-  try {
-    const { user_id, top_n } = req.query;
-    
-    // Validate input
-    if (!user_id) {
-      return res.status(400).json({ message: 'User ID is required.' });
+  // Get recommendations (Collaborative Filtering)
+  async getRecommendations(req, res) {
+    try {
+      const { user_id, top_n } = req.query;
+      
+      // Validate input
+      if (!user_id) {
+        return res.status(400).json({ message: 'User ID is required.' });
+      }
+
+      // Fetch user activity data
+      const userActivityResponse = await axios.post(`${process.env.BACKEND_URI}/activity`, {
+        userId: user_id,
+      });
+
+      // Check if user activity exists
+      if (!userActivityResponse.data) {
+        return res.status(404).json({ message: 'No user activity found for this user.' });
+      }
+
+      const userActivity = userActivityResponse.data;
+
+      // Define minimum interactions required for recommendations (e.g., 3 interactions)
+      const MIN_INTERACTIONS = 3;
+      const interactionCount = (userActivity.viewedProducts?.length || 0) +
+                              (userActivity.purchasedProducts?.length || 0) +
+                              (userActivity.ratings?.length || 0);
+
+      // Check if user has enough interactions
+      if (interactionCount < MIN_INTERACTIONS) {
+        return res.status(400).json({
+          message: `Insufficient user activity. At least ${MIN_INTERACTIONS} interactions (views, purchases, or ratings) are required for recommendations.`,
+        });
+      }
+
+      // Prepare activity data for Python API
+      const activityData = {
+        viewedProducts: userActivity.viewedProducts || [],
+        purchasedProducts: userActivity.purchasedProducts.map(item => item.product) || [],
+        ratings: userActivity.ratings.map(rating => ({
+          product: rating.product,
+          rating: rating.rating,
+          review: rating.review
+        })) || []
+      };
+
+      // Call the Python API
+      const pythonApiUrl = `${process.env.PYTHON_API_URL}/recommendations/`;
+      const response = await axios.post(pythonApiUrl, activityData, {
+        params: { top_n: top_n || 4 },
+      });
+
+      // Extract recommended product IDs from the response
+      const recommendedProductIds = response.data.recommendations;
+
+      // Fetch full product details for the recommended products
+      const products = await Product.find({ _id: { $in: recommendedProductIds } }).populate('brand');
+
+      // Return the recommended products
+      res.status(200).json({
+        message: 'Recommended products fetched successfully',
+        products,
+      });
+    } catch (err) {
+      console.error('Error fetching recommended products:', err.message);
+      res.status(500).json({ message: err.message });
     }
-
-    // Fetch user activity data
-    const userActivityResponse = await axios.post(`${process.env.BACKEND_URI}/activity`, {
-      userId: user_id,
-    });
-
-    // Check if user activity exists
-    if (!userActivityResponse.data) {
-      return res.status(404).json({ message: 'No user activity found for this user.' });
-    }
-    
-    const userActivity = userActivityResponse.data;
-    
-    // Call the Python API
-    const pythonApiUrl = `${process.env.PYTHON_API_URL}/recommendations/`;
-    const response = await axios.post(pythonApiUrl, userActivity, {
-      params: {  // Pass top_n as a query parameter
-        top_n: top_n || 4,  // Default to 4 if top_n is not provided
-      },
-    });
-
-    // Extract recommended product IDs from the response
-    const recommendedProductIds = response.data.recommendations;
-    
-    // Fetch full product details for the recommended products
-    const products = await Product.find({ _id: { $in: recommendedProductIds } }).populate('brand');
-
-    // Return the recommended products
-    res.status(200).json({
-      message: 'Recommended products fetched successfully',
-      products,
-    });
-  } catch (err) {
-    console.error('Error fetching recommended products:', err.message);
-    res.status(500).json({ message: err.message });
   }
-}
 
   // Get single product
   async show(req, res) {
@@ -177,33 +177,23 @@ async getRecommendations(req, res) {
         return res.status(404).json({ message: 'Product not found' });
       }
 
-
-      // Handle new image uploads
       if (req.files && req.files.length > 0) {
-
-
-        // Combine existing and new images
         const newImages = req.files.map(file => file.path.replace('public\\', '').replace('public/', ''));
         const combinedImages = [...product.images, ...newImages];
 
-        // Validate the total number of images
         if (combinedImages.length > 5) {
-          // Remove uploaded files since they won't be saved
           req.files.forEach(file => {
             const fullPath = path.join(__dirname, '..', '..', 'public', file.path);
             if (fs.existsSync(fullPath)) {
               fs.unlinkSync(fullPath);
             }
           });
-
           return res.status(400).json({ message: 'A maximum of 5 images are allowed per product.' });
         }
 
-        // Update the product's images
         product.images = combinedImages;
       }
 
-      // Update other fields
       Object.assign(product, req.body);
       await product.save();
 
@@ -213,36 +203,30 @@ async getRecommendations(req, res) {
     }
   }
 
-  //delete product
+  // Delete product
   async destroy(req, res) {
     try {
       const productId = req.params.id;
-
-      // Check if the product exists
       const product = await Product.findById(productId);
       if (!product) {
         return res.status(404).json({ message: 'Product not found' });
       }
 
-      // Check if the product exists in any cart
       const productInCart = await Cart.findOne({ 'items.product': productId });
       if (productInCart) {
         return res.status(400).json({ message: 'Cannot delete product as it exists in a cart.' });
       }
 
-      // Check if the product exists in any order
       const productInOrder = await Order.findOne({ 'items.product': productId });
       if (productInOrder) {
         return res.status(400).json({ message: 'Cannot delete product as it exists in an order.' });
       }
 
-      // Delete product images
       product.images.forEach((imagePath) => {
         const fullImagePath = path.join(__dirname, '..', '..', 'public', imagePath);
         fs.unlinkSync(fullImagePath);
       });
 
-      // Delete the product
       await product.deleteOne();
       res.status(200).json({ message: 'Product deleted successfully' });
     } catch (err) {
@@ -250,71 +234,51 @@ async getRecommendations(req, res) {
     }
   }
 
-
-
   // Delete a single image from a product
   async deleteImage(req, res) {
     try {
       const { id, imageName } = req.params;
-
-      // Find the product by ID
       const product = await Product.findById(id);
       if (!product) {
         return res.status(404).json({ message: 'Product not found' });
       }
 
-      // Ensure the product has more than one image
       if (product.images.length <= 1) {
         return res.status(400).json({
           message: 'Cannot delete the last remaining image of the product.',
         });
       }
 
-      // Normalize the image path to use forward slashes
-      const imagePath = `products/${imageName}`; // Use forward slashes
-      const normalizedImages = product.images.map(image => image.replace(/\\/g, '/')); // Normalize all stored image paths
-
-      // console.log('Normalized Product Images:', normalizedImages); // Debug log
-      // console.log('Image Path to Delete:', imagePath); // Debug log
-
+      const imagePath = `products/${imageName}`;
+      const normalizedImages = product.images.map(image => image.replace(/\\/g, '/'));
       const imageIndex = normalizedImages.findIndex(img => img === imagePath);
       if (imageIndex === -1) {
         return res.status(404).json({ message: 'Image not found in the product.' });
       }
 
-      // Remove the image from the images array
       product.images.splice(imageIndex, 1);
-
-      // Delete the image file from the public folder
       const fullImagePath = path.join(__dirname, '..', 'public', imagePath);
-      // console.log('Full Image Path:', fullImagePath); // Debug log
       if (fs.existsSync(fullImagePath)) {
         fs.unlinkSync(fullImagePath);
       }
 
-      // Save the product with the updated images array
       await product.save();
-
       res.status(200).json({ message: 'Image deleted successfully', product });
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
   }
 
-
+  // Search products
   async search(req, res) {
     try {
-      // Get the search query from the request's query parameters
       const searchQuery = req.query.q || '';
-
-      // Search products using regex to match product names (case insensitive)
       const products = await Product.find({
         name: { $regex: searchQuery, $options: 'i' }
       })
         .populate('brand')
         .sort({ createdAt: -1 })
         .limit(8);
-
       const total = await Product.countDocuments({
         name: { $regex: searchQuery, $options: 'i' }
       });
@@ -324,9 +288,6 @@ async getRecommendations(req, res) {
       res.status(500).json({ message: err.message });
     }
   }
-
-
-};
-
+}
 
 module.exports = ProductController;
