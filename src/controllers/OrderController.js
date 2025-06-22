@@ -98,7 +98,7 @@ class OrderController {
 
             // ✅ Log Purchase in UserActivity
             await logPurchase(userId, orderItems);
-            
+
             // Handle payment
             if (billingInfo.paymentMethod === 'Cash on Delivery') {
                 // Record the payment for COD
@@ -196,14 +196,23 @@ class OrderController {
                 return res.status(400).json({ message: 'Order has already been delivered.' });
             }
 
+            // Update order status
             order.status = 'Delivered';
             order.paymentStatus = 'Paid';
             order.updatedAt = Date.now();
             await order.save();
 
+            // Update associated payment status
+            const payment = await Payment.findOne({ orderId });
+            if (payment) {
+                payment.status = 'success';
+                payment.updatedAt = Date.now();
+                await payment.save();
+            }
+
             res.status(200).json({ message: 'Order confirmed', order });
         } catch (error) {
-            res.status(500).json({ message: 'Failed to confirm order', error });
+            res.status(500).json({ message: 'Failed to confirm order', error: error.message });
         }
     }
 
@@ -221,6 +230,7 @@ class OrderController {
             if (order.status === 'Delivered') {
                 return res.status(400).json({ message: 'Order has already been delivered.' });
             }
+
             // Increase product quantities back
             for (const item of order.items) {
                 const product = await Product.findById(item.product._id);
@@ -230,13 +240,22 @@ class OrderController {
                 }
             }
 
+            // Update order status
             order.status = 'Cancelled';
             order.paymentStatus = 'Failed';
             await order.save();
 
+            // Update associated payment status
+            const payment = await Payment.findOne({ orderId });
+            if (payment) {
+                payment.status = 'failed';
+                payment.updatedAt = Date.now();
+                await payment.save();
+            }
+
             res.status(200).json({ message: 'Order cancelled successfully', order });
         } catch (error) {
-            res.status(500).json({ message: 'Failed to cancel order', error });
+            res.status(500).json({ message: 'Failed to cancel order', error: error.message });
         }
     }
 
