@@ -101,7 +101,8 @@ class ProductController {
       const userActivityResponse = await axios.post(`${process.env.BACKEND_URI}/activity`, {
         userId: user_id,
       });
-
+      
+      
       // Check if user activity exists
       if (!userActivityResponse.data) {
         return res.status(404).json({ message: 'No user activity found for this user.' });
@@ -110,32 +111,23 @@ class ProductController {
       const userActivity = userActivityResponse.data;
 
       // Define minimum interactions required for recommendations (e.g., 3 interactions)
-      const MIN_INTERACTIONS = 3;
+      const MIN_INTERACTIONS = 10;
       const interactionCount = (userActivity.viewedProducts?.length || 0) +
                               (userActivity.purchasedProducts?.length || 0) +
                               (userActivity.ratings?.length || 0);
-
+      
       // Check if user has enough interactions
       if (interactionCount < MIN_INTERACTIONS) {
         return res.status(400).json({
+          interactions: interactionCount,
           message: `Insufficient user activity. At least ${MIN_INTERACTIONS} interactions (views, purchases, or ratings) are required for recommendations.`,
         });
       }
 
-      // Prepare activity data for Python API
-      const activityData = {
-        viewedProducts: userActivity.viewedProducts || [],
-        purchasedProducts: userActivity.purchasedProducts.map(item => item.product) || [],
-        ratings: userActivity.ratings.map(rating => ({
-          product: rating.product,
-          rating: rating.rating,
-          review: rating.review
-        })) || []
-      };
 
       // Call the Python API
       const pythonApiUrl = `${process.env.PYTHON_API_URL}/recommendations/`;
-      const response = await axios.post(pythonApiUrl, activityData, {
+      const response = await axios.post(pythonApiUrl, userActivity, {
         params: { top_n: top_n || 4 },
       });
 
